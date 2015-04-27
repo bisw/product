@@ -1,0 +1,197 @@
+<?php
+
+/**
+ * Implement hook_menu.
+ */
+function product_import_menu() {
+  $items = array();
+  $items['admin/config/content/product_import'] = array(
+    'title' => 'Product Import',
+    'type' => MENU_LOCAL_TASK,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('product_import_batch_setting_form'),
+    'access arguments' => array('administer users'),
+  );
+  return $items;
+}
+
+/**
+ * Implement product_import_batch_setting_form.
+ */
+function product_import_batch_setting_form() {
+  $form['product_form'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Update/Create Product'),
+    '#weight' => 0,
+  );
+  $form['product_submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Import'),
+  );
+  return $form;
+}
+
+/**
+ * Implement product_import_batch_setting_form_submit.
+ */
+function product_import_batch_setting_form_submit($form, &$form_state) {
+  $product_batch = array();
+  $products = array();
+  $data = array();
+
+  $json_data = $form_state['values']['product_form'];
+  $data = json_decode($json_data);
+  $data = $data->products;
+  
+  if(!empty($data)) {  
+	foreach ($data as $product => $value) {
+	
+		$brand_id = $value->brand->id ? $value->brand->id : 1;
+		$brand_name = $value->brand->name ? $value->brand->name : 'brand term';
+		$retailer_id = $value->retailer->id ? $value->retailer->id : 1;
+		$retailer_name = $value->retailer->name ? $value->retailer->name : 'retailer term';
+
+	    $products['id'] = $value->id;
+        $products['title'] = $value->name;
+        $products['unbrandedName'] = $value->unbrandedName;
+		$products['brandedName'] = $value->brandedName;
+        $products['description'] = $value->description;
+        $products['buy'] = $value->clickUrl;
+        $products['image'] = $value->image->sizes->Original->url;
+        $products['price'] = $value->price;
+		$products['priceLabel'] = $value->priceLabel;
+		$products['stock'] = $value->inStock;
+        $products['brand'] = $brand_id;
+        $products['retailer'] = $retailer_id;
+		$products['brand_name'] = $brand_name;
+        $products['retailer_name'] = $retailer_name;
+		$products['more_link'] = $value->seeMoreUrl;
+
+        $product_batch[] = array('_product_import_product_creation', array($products)); 	
+    }
+  
+    $batch = array(
+      'operations' => $product_batch,					   
+      'finished' => '_product_import_content_import_batch_finished',
+      'title' => t('Processing Product'),
+      'init_message' => t('Batch is starting.'),
+    );
+    batch_set($batch);
+  }	
+}
+
+/**
+ * Implement _product_import_product_creation().
+ */
+function _product_import_product_creation($products, &$context) {
+  global $user;
+  $itemid = check_plain($products['id']);
+  
+  // Check node is already created or not. 
+  $query = db_query("select entity_id from field_data_field_product_id where field_product_id_value = :itemid", array(':itemid' => $itemid))->fetchField();
+  if (empty($query)) {    
+	// Create new node
+	$node = new stdClass();
+    $node->type = 'product';
+    node_object_prepare($node);
+    $node->title = $products['title'];
+    $node->language = LANGUAGE_NONE;
+    $node->body[$node->language][0]['value'] = $products['description'];
+    $node->body[$node->language][0]['format'] = 'filtered_html';
+    $node->field_product_id[$node->language][0]['value'] = $products['id'];
+    $node->field_more_link[$node->language][0]['value'] = $products['more_link'];
+    $node->uid = $user->uid > 0 ? $user->uid : 1;
+    $node->field_price[$node->language][0]['value'] = $products['price'];
+	$node->field_price_label[$node->language][0]['value'] = $products['priceLabel'];
+    $node->field_stock[$node->language][0]['value'] = $products['stock'];
+    $node->field_brand[LANGUAGE_NONE][0]['tid'] = $products['brand'];
+	$node->field_branded_name[LANGUAGE_NONE][0]['value'] = $products['brandedName'];
+	$node->field_unbranded_name[LANGUAGE_NONE][0]['value'] = $products['unbrandedName'];
+    $node->field_retailer[LANGUAGE_NONE][0]['tid'] = $products['retailer'];
+    if ($products['image'] != "") {
+      $node->uid = $user->uid > 0 ? $user->uid : 1;
+      $file = file_save_data(file_get_contents($products['image']), file_default_scheme() . '://' . basename($products['image']));
+      $file->uid = $user->uid > 0 ? $user->uid : 1;
+      $node->field_image[$node->language][0] = (array) $file;
+    }
+    node_save($node);
+  }
+  else {
+    // Update existing node.
+    $node = node_load($query);
+    $node->title = $products['title'];
+    $node->language = LANGUAGE_NONE;
+    $node->body[$node->language][0]['value'] = $products['description'];
+    $node->body[$node->language][0]['format'] = 'filtered_html';
+    $node->field_product_id[$node->language][0]['value'] = $products['id'];
+    $node->field_more_link[$node->language][0]['value'] = $products['more_link'];
+    $node->uid = $user->uid > 0 ? $user->uid : 1;
+    $node->field_price[$node->language][0]['value'] = $products['price'];
+	$node->field_price_label[$node->language][0]['value'] = $products['priceLabel'];
+    $node->field_stock[$node->language][0]['value'] = $products['stock'];
+    $node->field_brand[LANGUAGE_NONE][0]['tid'] = $products['brand'];
+	$node->field_branded_name[LANGUAGE_NONE][0]['value'] = $products['brandedName'];
+	$node->field_unbranded_name[LANGUAGE_NONE][0]['value'] = $products['unbrandedName'];
+    $node->field_retailer[LANGUAGE_NONE][0]['tid'] = $products['retailer'];
+    node_save($node);
+  }
+  
+  // Import term related to brand vocabulary.
+  $brand_id = check_plain($products['brand']);
+  $brand = _product_import_get_vocabulary_id('brand'); 
+  $query_b =  _product_import_check_term_exist($brand_id); 
+  if (empty($query_b)) {
+    $term_b = new stdClass();
+	$term_b->vid = $brand;
+	$term_b->name = $products['brand_name'];
+	$term_b->tid = $brand_id;
+	$term_b->description = $products['brand_name'];
+	$term_b->format = 'filtered_html';
+	taxonomy_term_save($term_b);
+  }  
+  
+  // Import term related to retailer vocabulary.
+  $retailer_id = check_plain($products['retailer']);
+  $retailer = _product_import_get_vocabulary_id('retailer'); 
+  $query_r =  _product_import_check_term_exist($retailer_id); 
+  if (empty($query_r)) {
+    $term = new stdClass();
+	$term->vid = $retailer;
+	$term->name = $products['retailer_name'];
+	$term->tid = $retailer_id;
+	$term->description = $products['retailer_name'];
+	$term->format = 'filtered_html';
+	taxonomy_term_save($term);
+  }   
+}
+
+/**
+ * User subscription date migration finished process
+ */
+function _product_import_content_import_batch_finished($success, $results, $operations) {
+  if ($success) {
+    drupal_set_message(t('Content has been imported sucessfully.'));
+  }
+  else {
+    drupal_set_message(t('Content is not imported properly.'), 'error');
+  }
+  cache_clear_all();
+}
+
+/**
+ * check term is exists or not.
+ */
+function _product_import_check_term_exist($tid) {
+  $tid = check_plain($tid);
+  $query = db_query("select tid from {taxonomy_term_data} where tid = :tid", array(':tid' => $tid))->fetchField();
+  return $query;
+}
+
+/**
+ * get vocabulary id by vocabulary name
+ */
+function _product_import_get_vocabulary_id($name) {
+  $name = check_plain($name);
+  $names = taxonomy_vocabulary_get_names();
+  return check_plain($names[$name]->vid);
+}

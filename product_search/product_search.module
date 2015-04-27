@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the Product Search feature.
+ */
+
+include_once 'product_search.features.inc';

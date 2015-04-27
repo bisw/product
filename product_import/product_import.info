@@ -1,0 +1,6 @@
+name = Product Import
+description = Import node from json file
+core = 7.x
+package = srijan_custom
+version = 7.x-1.0
+project = product_import
