@@ -78,11 +78,11 @@ function product_search_views_default_views() {
   $handler->display->display_options['fields']['field_branded_name']['id'] = 'field_branded_name';
   $handler->display->display_options['fields']['field_branded_name']['table'] = 'field_data_field_branded_name';
   $handler->display->display_options['fields']['field_branded_name']['field'] = 'field_branded_name';
-  /* Field: Content: Cost */
-  $handler->display->display_options['fields']['field_price']['id'] = 'field_price';
-  $handler->display->display_options['fields']['field_price']['table'] = 'field_data_field_price';
-  $handler->display->display_options['fields']['field_price']['field'] = 'field_price';
-  $handler->display->display_options['fields']['field_price']['label'] = 'Price';
+  /* Field: Content: Price */
+  $handler->display->display_options['fields']['field_price_label']['id'] = 'field_price_label';
+  $handler->display->display_options['fields']['field_price_label']['table'] = 'field_data_field_price_label';
+  $handler->display->display_options['fields']['field_price_label']['field'] = 'field_price_label';
+  $handler->display->display_options['fields']['field_price_label']['label'] = 'Price Label';
   /* Field: Content: Retailer */
   $handler->display->display_options['fields']['field_retailer']['id'] = 'field_retailer';
   $handler->display->display_options['fields']['field_retailer']['table'] = 'field_data_field_retailer';
@@ -182,31 +182,6 @@ function product_search_views_default_views() {
   /* Display: Page */
   $handler = $view->new_display('page', 'Page', 'page');
   $handler->display->display_options['path'] = 'search-product';
-  $translatables['search_product'] = array(
-    t('Master'),
-    t('Search Product'),
-    t('more'),
-    t('Apply'),
-    t('Reset'),
-    t('Sort by'),
-    t('Asc'),
-    t('Desc'),
-    t('Items per page'),
-    t('- All -'),
-    t('Offset'),
-    t('« first'),
-    t('‹ previous'),
-    t('next ›'),
-    t('last »'),
-    t('Product id'),
-    t('Branded Name'),
-    t('Price'),
-    t('Retailer'),
-    t('Search by product id, brand, retailer'),
-    t('In Stock'),
-    t('Price (field_price)'),
-    t('Page'),
-  );
   $export['search_product'] = $view;
 
   return $export;
